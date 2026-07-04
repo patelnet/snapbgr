@@ -1,0 +1,45 @@
+<!-- HomePage.xaml — main control surface: folders, start/stop, status, log,
+     and drag-and-drop processing. -->
+<Page
+    x:Class="SnapBGR.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    AllowDrop="True"
+    DragOver="Page_DragOver"
+    Drop="Page_Drop">
+
+    <Grid Padding="24" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="Watch folder" Style="{StaticResource CaptionTextBlockStyle}" />
+            <TextBox x:Name="WatchFolderBox" PlaceholderText="Folder to watch for new images" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="4">
+            <TextBlock Text="Output folder" Style="{StaticResource CaptionTextBlockStyle}" />
+            <TextBox x:Name="OutputFolderBox" PlaceholderText="Folder for processed PNGs" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="StartButton" Content="Start" Click="StartButton_Click"
+                    Style="{StaticResource AccentButtonStyle}" />
+            <Button x:Name="StopButton" Content="Stop" Click="StopButton_Click" />
+        </StackPanel>
+
+        <TextBlock x:Name="StatusText" Grid.Row="3" Text="Idle"
+                   Style="{StaticResource BodyStrongTextBlockStyle}" />
+
+        <ListView x:Name="LogList" Grid.Row="4"
+                  SelectionMode="None"
+                  BorderThickness="1"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                  CornerRadius="4" />
+    </Grid>
+</Page>

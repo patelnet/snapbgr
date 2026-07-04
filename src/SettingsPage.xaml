@@ -1,0 +1,25 @@
+<!-- SettingsPage.xaml — edit and save watch/output folders. -->
+<Page
+    x:Class="SnapBGR.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <StackPanel Padding="24" Spacing="12" MaxWidth="600" HorizontalAlignment="Left">
+        <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Watch folder" Style="{StaticResource CaptionTextBlockStyle}" />
+            <TextBox x:Name="WatchFolderBox" PlaceholderText="Folder to watch for new images" />
+        </StackPanel>
+
+        <StackPanel Spacing="4">
+            <TextBlock Text="Output folder" Style="{StaticResource CaptionTextBlockStyle}" />
+            <TextBox x:Name="OutputFolderBox" PlaceholderText="Folder for processed PNGs" />
+        </StackPanel>
+
+        <Button x:Name="SaveButton" Content="Save" Click="SaveButton_Click"
+                Style="{StaticResource AccentButtonStyle}" />
+
+        <TextBlock x:Name="SavedText" Text="" Style="{StaticResource CaptionTextBlockStyle}" />
+    </StackPanel>
+</Page>

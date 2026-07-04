@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Product.wxs — WiX Toolset v5 authoring for the SnapBGR MSI.
+
+  Build (WiX v5 CLI):
+    dotnet tool install ~~global wix ~~version 5.0.2   <- one-time (use double dashes)
+    wix build installer\Product.wxs -d BuildDir=<ABSOLUTE path to build\Release> -o build\SnapBGR.msi
+
+  BuildDir must be ABSOLUTE: wildcard [Files] harvesting resolves relative
+  paths against this .wxs file's folder, not the working directory.
+
+  Design notes:
+  - Dual-scope install (Scope="perUserOrMachine"): the wizard's scope page
+    lets the user pick "just for you" (no elevation; files under
+    %LOCALAPPDATA%\Programs via MSI 5.0 folder redirection) or "all users"
+    (UAC elevation; files under Program Files).
+  - UpgradeCode is FIXED forever; ProductCode (Package Id) is auto-generated
+    per build ("*" semantics in v5 via no Id), enabling major upgrades.
+  - Default settings are NOT installed to %LOCALAPPDATA%\SnapBGR:
+    the app creates settings.json on first run, which guarantees existing
+    user settings are never overwritten by the installer.
+  - Signing: sign the MSI after build, e.g.
+      signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com build\SnapBGR.msi
+    In CI, run this step only when signing secrets are configured.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="SnapBGR"
+           Manufacturer="Dhaval"
+           Version="1.4.0"
+           UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
+           Scope="perUserOrMachine"
+           Compressed="yes">
+
+    <!-- Major upgrade: newer versions replace older ones; block downgrades. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of SnapBGR is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- All source paths are relative to the repo root: run `wix build`
+         from the repository root as shown above. -->
+    <Icon Id="AppIcon" SourceFile="installer\icons\appicon.ico" />
+    <!-- Add/Remove Programs metadata. -->
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/patelnet/snapbgr" />
+
+    <!-- Setup wizard with an install-scope page ("just for you" vs "all
+         users") plus install-location page (WixUI_Advanced).
+         Requires building with: -ext WixToolset.UI.wixext (see CI). -->
+    <Property Id="ApplicationFolderName" Value="SnapBGR" />
+    <!-- Default scope selection: per-user (no elevation). -->
+    <Property Id="WixAppFolder" Value="WixPerUserFolder" />
+    <ui:WixUI Id="WixUI_Advanced" />
+    <WixVariable Id="WixUILicenseRtf" Value="installer\license.rtf" />
+    <!-- Branded wizard art: 493x58 banner + 493x312 welcome/finish background. -->
+    <WixVariable Id="WixUIBannerBmp" Value="installer\icons\banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="installer\icons\dialog.bmp" />
+
+    <!-- Install root. For per-machine installs this is
+         "Program Files\SnapBGR"; for per-user installs, Windows
+         Installer 5.0 redirects it under %LOCALAPPDATA%\Programs
+         automatically (MSIINSTALLPERUSER). -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="APPLICATIONFOLDER" Name="SnapBGR">
+        <Directory Id="AssetsDir" Name="assets" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ShortcutDir" Name="SnapBGR" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppComponents" Directory="APPLICATIONFOLDER">
+      <!-- BuildDir is passed via -d BuildDir=... on the wix command line. -->
+      <Component>
+        <File Id="MainExe" Source="$(BuildDir)\SnapBGR.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ShortcutDir"
+                    Name="SnapBGR"
+                    WorkingDirectory="APPLICATIONFOLDER"
+                    Icon="AppIcon"
+                    Advertise="yes" />
+        </File>
+      </Component>
+      <!-- Per-user installs need a registry KeyPath for non-EXE components. -->
+      <Component>
+        <RegistryValue Root="HKCU" Key="Software\SnapBGR"
+                       Name="InstallDir" Value="[APPLICATIONFOLDER]"
+                       Type="string" KeyPath="yes" />
+        <RemoveFolder Id="RemoveShortcutDir" Directory="ShortcutDir" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallDir" Directory="APPLICATIONFOLDER" On="uninstall" />
+        <RemoveFolder Id="RemoveAssetsDir" Directory="AssetsDir" On="uninstall" />
+      </Component>
+      <!-- Runtime dependencies: vcpkg's default x64-windows triplet builds
+           OpenCV/ONNX Runtime as DLLs (opencv_imgproc4.dll, onnxruntime.dll,
+           zlib1.dll, ...) that vcpkg deploys next to the EXE. Harvest every
+           DLL from the build output so the installed app is self-contained. -->
+      <Files Include="$(BuildDir)\*.dll" />
+    </ComponentGroup>
+
+    <ComponentGroup Id="AssetComponents" Directory="AssetsDir">
+      <!-- Explicit Guid required: components mixing a File with a registry
+           KeyPath cannot use auto-generated guids (WIX0230). -->
+      <Component Guid="3F8A1D2C-6B4E-4C9A-B7D0-8E5F2A1C3B90">
+        <File Source="assets\appicon.ico" />
+        <RegistryValue Root="HKCU" Key="Software\SnapBGR"
+                       Name="AssetsInstalled" Value="1" Type="integer" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="SnapBGR" Level="1">
+      <ComponentGroupRef Id="AppComponents" />
+      <ComponentGroupRef Id="AssetComponents" />
+    </Feature>
+
+  </Package>
+</Wix>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Bundle.wxs — OPTIONAL WiX v5 Burn bundle.
+
+  Use this only if you need to chain prerequisite runtimes (e.g., the
+  Windows App SDK runtime or VC++ redistributable) before the MSI. For a
+  plain per-user MSI, Product.wxs alone is sufficient.
+
+  Build:
+    wix build installer\Bundle.wxs -ext WixToolset.BootstrapperApplications.wixext ^
+        -d MsiPath=build\SnapBGR.msi -o build\SnapBGRSetup.exe
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+
+  <Bundle Name="SnapBGR Setup"
+          Manufacturer="Dhaval"
+          Version="1.0.0"
+          UpgradeCode="0C3D4F6B-1E22-4B7D-9A85-6F0A2C8D3E21">
+
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          LicenseUrl=""
+          Theme="hyperlinkLicense" />
+    </BootstrapperApplication>
+
+    <Chain>
+      <!--
+        Example prerequisite (uncomment and pin the URL/version you need):
+
+        <ExePackage Id="WindowsAppSDKRuntime"
+                    DisplayName="Windows App SDK 2.2 Runtime"
+                    SourceFile="downloads\WindowsAppRuntimeInstall-x64.exe"
+                    InstallArguments="- - quiet"
+                    Permanent="yes"
+                    DetectCondition="WindowsAppSdkInstalled" />
+      -->
+      <MsiPackage SourceFile="$(MsiPath)" DisplayInternalUI="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

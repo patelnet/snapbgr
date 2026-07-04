@@ -1,0 +1,3 @@
+// tray_app.rc — embeds the application icon so Explorer, the taskbar, and
+// the tray fallback all show the SnapBGR artwork.
+1 ICON "../assets/appicon.ico"

@@ -1,0 +1,115 @@
+# CI — builds the core pipeline + console test on Windows with vcpkg,
+# runs the synthetic-fallback smoke test, builds the MSI, uploads artifacts.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Pinned vcpkg release. Update this tag together with vcpkg.json pins.
+  VCPKG_TAG: "2026.06.24"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Checkout vcpkg (pinned)
+        uses: actions/checkout@v7
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_TAG }}
+          path: vcpkg
+          # vcpkg versioning resolves pinned port versions from git history,
+          # so a shallow clone is not sufficient.
+          fetch-depth: 0
+
+      - name: Bootstrap vcpkg
+        run: .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v6
+        with:
+          path: ~\AppData\Local\vcpkg\archives
+          key: vcpkg-${{ env.VCPKG_TAG }}-${{ hashFiles('vcpkg.json') }}
+
+      - name: Sync manifest baseline
+        # vcpkg.json ships with a placeholder baseline; pin it to the
+        # checked-out vcpkg commit so version overrides resolve.
+        run: .\vcpkg\vcpkg.exe x-update-baseline
+
+      - name: Configure (CMake + vcpkg toolchain, manifest install)
+        run: >
+          cmake -S . -B build
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake
+
+      - name: Build Release
+        run: cmake --build build --config Release
+
+      - name: Run console test (synthetic fallback)
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Copy VC++ runtime (app-local CRT)
+        # The app links the dynamic CRT, so machines without the VC++
+        # Redistributable fail with "MSVCP140.dll / VCRUNTIME140.dll not
+        # found". Deploy the CRT app-locally: copy the redist DLLs into the
+        # build output so the MSI wildcard harvest bundles them.
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "VC++ redist CRT folder not found under $vs" }
+          Copy-Item "$($crt.FullName)\*.dll" build\Release\
+          Write-Host "Copied CRT from $($crt.FullName):"
+          Get-ChildItem build\Release\msvcp*.dll, build\Release\vcruntime*.dll, build\Release\concrt*.dll -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+
+      - name: Install WiX v5
+        # Pin to v5: newer WiX majors (v7+) require OSMF EULA acceptance.
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add --global WixToolset.UI.wixext/5.0.2
+
+      - name: Build MSI
+        # Package the Win32 tray app (rmbg_tray) as SnapBGR.exe —
+        # the real GUI app. The richer WinUI 3 shell builds from Visual
+        # Studio (see README). The MSI filename carries the product version
+        # (read from Product.wxs) so release assets are self-describing.
+        run: |
+          Copy-Item build\Release\rmbg_tray.exe build\Release\SnapBGR.exe
+          $ver = (Select-String -Path installer\Product.wxs -Pattern 'Version="(\d+\.\d+\.\d+)"' -CaseSensitive).Matches[0].Groups[1].Value
+          Write-Host "Product version: $ver"
+          # BuildDir must be absolute: WiX resolves wildcard <Files> harvesting
+          # relative to the .wxs file, not the working directory.
+          wix build installer\Product.wxs -ext WixToolset.UI.wixext -d BuildDir=${{ github.workspace }}\build\Release -o build\SnapBGR-$ver.msi
+        working-directory: ${{ github.workspace }}
+
+      # Optional signing — runs only when signing secrets are configured.
+      # Add SIGNING_CERT_PFX_BASE64 and SIGNING_CERT_PASSWORD repo secrets,
+      # then this step signs the MSI with signtool.
+      - name: Sign MSI (optional)
+        if: ${{ vars.ENABLE_SIGNING == 'true' }}
+        env:
+          CERT_B64: ${{ secrets.SIGNING_CERT_PFX_BASE64 }}
+          CERT_PWD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:CERT_B64))
+          & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe" `
+            sign /f cert.pfx /p $env:CERT_PWD /fd SHA256 `
+            /tr http://timestamp.digicert.com /td SHA256 `
+            (Get-ChildItem build\SnapBGR-*.msi).FullName
+          Remove-Item cert.pfx
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnapBGR-${{ github.sha }}
+          path: |
+            build\Release\*.exe
+            build\Release\*.dll
+            build\SnapBGR-*.msi
