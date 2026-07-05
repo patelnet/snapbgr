@@ -314,7 +314,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         if (watcher.IsWatching()) return;
         const bool ok = watcher.StartWatching(
             settings.WatchedFolder(),
-            [&](const std::wstring& fullPath) { work.Enqueue(fullPath); });
+            [&](const std::wstring& fullPath) {
+                // Skip our own outputs so watch folder == output folder
+                // does not loop forever on freshly written PNGs.
+                if (rmbg::BackgroundRemovalService::IsGeneratedOutput(fullPath)) return;
+                work.Enqueue(fullPath);
+            });
         if (ok) {
             tray.SetTooltip(L"SnapBGR — watching " + settings.WatchedFolder());
             tray.ShowBalloon(L"Watching started", settings.WatchedFolder());

@@ -75,6 +75,12 @@ public:
     static ModelProfile DetectProfile(const std::wstring& modelPath,
                                       int declaredWidth, int declaredHeight);
 
+    // True when `path` looks like a PNG this service produced
+    // ("<stem>_nobg_<timestamp>[...].png"). Watchers use this to skip the
+    // app's own outputs — without it, setting the watch and output folders
+    // to the same directory would re-process every result forever.
+    static bool IsGeneratedOutput(const std::wstring& path);
+
     // Processes `inputPath` and writes a BGRA PNG to `outputDir`.
     // The output filename is "<stem>_nobg_<timestamp>.png" — timestamps
     // avoid ever overwriting existing user files.

@@ -277,6 +277,14 @@ cv::Mat BackgroundRemovalService::Postprocess(const cv::Mat& originalBgr, const 
     return bgra.clone(); // caller owns an independent copy
 }
 
+bool BackgroundRemovalService::IsGeneratedOutput(const std::wstring& path) {
+    const fs::path p(path);
+    std::wstring ext = p.extension().wstring();
+    for (auto& c : ext) c = static_cast<wchar_t>(::towlower(c));
+    if (ext != L".png") return false;
+    return p.stem().wstring().find(L"_nobg_") != std::wstring::npos;
+}
+
 std::optional<std::wstring> BackgroundRemovalService::ProcessImage(
     const std::wstring& inputPath, const std::wstring& outputDir) {
     try {

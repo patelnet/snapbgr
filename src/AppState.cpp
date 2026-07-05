@@ -96,6 +96,9 @@ void AppState::StopWatching() {
 }
 
 void AppState::OnNewFile(std::wstring fullPath) {
+    // Skip files we produced ourselves; when the watch and output folders
+    // are the same, our own PNGs would otherwise be re-processed forever.
+    if (BackgroundRemovalService::IsGeneratedOutput(fullPath)) return;
     // Watcher-thread context: hand off to a worker immediately so the
     // watcher loop keeps draining events.
     ProcessFileAsync(std::move(fullPath));

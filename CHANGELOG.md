@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.4.1] - 2026-07-04
+
+### Fixed
+- Endless processing loop when the watch folder and output folder were set
+  to the same directory: the app's own `*_nobg_*.png` outputs triggered new
+  file events and were re-processed. Generated outputs are now recognized
+  and skipped by the folder watcher.
+
 ## [1.4.0] - 2026-07-04
 
 ### Changed
