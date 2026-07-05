@@ -43,6 +43,13 @@ find_package(OpenCV CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 # vcpkg's onnxruntime port exports this config target.
 find_package(onnxruntime CONFIG REQUIRED)
+# The static package places headers under include/onnxruntime/ and the
+# exported target does not always propagate that path — resolve it
+# explicitly so `#include <onnxruntime_cxx_api.h>` works in both layouts.
+find_path(ONNXRUNTIME_INCLUDE_DIR
+  NAMES onnxruntime_cxx_api.h
+  PATH_SUFFIXES onnxruntime
+  REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Core library (UI-independent, unit-testable)
@@ -52,7 +59,7 @@ add_library(rmbg_core STATIC
   src/DirectoryWatcher.cpp
   src/Settings.cpp
 )
-target_include_directories(rmbg_core PUBLIC src)
+target_include_directories(rmbg_core PUBLIC src ${ONNXRUNTIME_INCLUDE_DIR})
 target_link_libraries(rmbg_core PUBLIC
   ${OpenCV_LIBS}
   nlohmann_json::nlohmann_json
