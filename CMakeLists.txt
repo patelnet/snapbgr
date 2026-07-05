@@ -9,6 +9,13 @@
 # Requires: CMake >= 3.24 (tested with 3.30.2), MSVC (VS 2026), vcpkg.
 cmake_minimum_required(VERSION 3.24)
 
+# Single-file static build: link OpenCV, ONNX Runtime, and the MSVC CRT
+# into the EXE so no DLLs need to ship next to it. Override with
+# -DVCPKG_TARGET_TRIPLET=x64-windows to get the old DLL-based build.
+if(NOT DEFINED VCPKG_TARGET_TRIPLET)
+  set(VCPKG_TARGET_TRIPLET "x64-windows-static" CACHE STRING "vcpkg triplet")
+endif()
+
 # Use the vcpkg toolchain automatically when VCPKG_ROOT is set and the
 # caller did not already pass a toolchain file.
 if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
@@ -20,6 +27,12 @@ project(SnapBGR VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Static CRT (/MT) to match the x64-windows-static triplet — this is what
+# removes the MSVCP140.dll / VCRUNTIME140.dll runtime dependency.
+if(VCPKG_TARGET_TRIPLET MATCHES "-static$")
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 if(MSVC)
   add_compile_options(/W4 /permissive- /utf-8 /EHsc)

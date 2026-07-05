@@ -53,8 +53,8 @@ yet code-signed, so SmartScreen may prompt on first run — verify the
 checksum and choose *More info → Run anyway*. Uninstall any time from
 *Settings → Apps*.
 
-A portable `SnapBGR-<version>-portable.zip` (no installer) is
-also published with each release.
+A portable single-file `SnapBGR-<version>.exe` (no installer, no DLLs —
+just download and run) is also published with each release.
 
 **System requirements:** Windows 10/11, 64-bit. No additional runtimes —
 all dependencies (including the VC++ runtime) ship inside the package.
@@ -228,19 +228,13 @@ wix extension add --global WixToolset.UI.wixext/5.0.2
 wix build installer\Product.wxs -ext WixToolset.UI.wixext -d BuildDir="$PWD\build\Release" -o build\SnapBGR.msi
 ```
 
-The MSI bundles the EXE **and every runtime DLL** from the build output
-(OpenCV, ONNX Runtime, image codecs, VC++ CRT), so the installed app is
-fully self-contained. `BuildDir` must be an absolute path (WiX resolves
-wildcard harvesting relative to the `.wxs` file).
-
-Before packaging, copy the VC++ redistributable DLLs into the build
-output for app-local deployment (CI does this automatically):
-
-```powershell
-$vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
-$crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory | Sort-Object FullName | Select-Object -Last 1
-Copy-Item "$($crt.FullName)\*.dll" build\Release\
-```
+The build links everything statically (vcpkg `x64-windows-static`
+triplet + `/MT` CRT), so `SnapBGR.exe` is a **single self-contained
+file** — no OpenCV/ONNX Runtime DLLs and no VC++ Redistributable
+required. The MSI just installs the EXE. `BuildDir` must be an absolute
+path (WiX resolves wildcard harvesting relative to the `.wxs` file).
+To build the old DLL-based layout instead, configure with
+`-DVCPKG_TARGET_TRIPLET=x64-windows`.
 
 Installer characteristics:
 
@@ -263,8 +257,8 @@ artifact upload → optional signing.
 
 Release checklist: bump `Version` in `installer/Product.wxs`, add a
 `CHANGELOG.md` entry, push to `main`, let CI go green, then publish the
-run's artifacts as `SnapBGR-<version>.msi` and
-`SnapBGR-<version>-portable.zip` with SHA256 checksums in the
+run's artifacts as `SnapBGR-<version>.msi` and the single-file
+`SnapBGR-<version>.exe` with SHA256 checksums in the
 notes.
 
 ### Build troubleshooting

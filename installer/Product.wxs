@@ -28,7 +28,7 @@
 
   <Package Name="SnapBGR"
            Manufacturer="Dhaval"
-           Version="1.4.1"
+           Version="1.5.0"
            UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
            Scope="perUserOrMachine"
            Compressed="yes">
@@ -92,11 +92,9 @@
         <RemoveFolder Id="RemoveInstallDir" Directory="APPLICATIONFOLDER" On="uninstall" />
         <RemoveFolder Id="RemoveAssetsDir" Directory="AssetsDir" On="uninstall" />
       </Component>
-      <!-- Runtime dependencies: vcpkg's default x64-windows triplet builds
-           OpenCV/ONNX Runtime as DLLs (opencv_imgproc4.dll, onnxruntime.dll,
-           zlib1.dll, ...) that vcpkg deploys next to the EXE. Harvest every
-           DLL from the build output so the installed app is self-contained. -->
-      <Files Include="$(BuildDir)\*.dll" />
+      <!-- Static build: OpenCV, ONNX Runtime, and the MSVC CRT are linked
+           into SnapBGR.exe (vcpkg x64-windows-static triplet), so the EXE
+           is fully self-contained — no runtime DLLs to install. -->
     </ComponentGroup>
 
     <ComponentGroup Id="AssetComponents" Directory="AssetsDir">

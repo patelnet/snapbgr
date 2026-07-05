@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.5.0] - 2026-07-04
+
+### Changed
+- **Single-file portable EXE**: the app is now built fully statically
+  (vcpkg `x64-windows-static` triplet + static MSVC CRT). `SnapBGR.exe`
+  contains OpenCV, ONNX Runtime, and the VC++ runtime — no DLLs needed,
+  nothing else to install. The portable download is now just
+  `SnapBGR-<version>.exe` instead of a zip.
+- The MSI installs only the EXE and icon; CI verifies the build output
+  contains no DLLs.
+
 ## [1.4.1] - 2026-07-04
 
 ### Fixed

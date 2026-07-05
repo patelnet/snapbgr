@@ -36,7 +36,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~\AppData\Local\vcpkg\archives
-          key: vcpkg-${{ env.VCPKG_TAG }}-${{ hashFiles('vcpkg.json') }}
+          # "-static" suffix: the x64-windows-static triplet builds different
+          # binaries; a fresh key keeps the cache updatable.
+          key: vcpkg-${{ env.VCPKG_TAG }}-static-${{ hashFiles('vcpkg.json') }}
 
       - name: Sync manifest baseline
         # vcpkg.json ships with a placeholder baseline; pin it to the
@@ -54,20 +56,14 @@ jobs:
       - name: Run console test (synthetic fallback)
         run: ctest --test-dir build -C Release --output-on-failure
 
-      - name: Copy VC++ runtime (app-local CRT)
-        # The app links the dynamic CRT, so machines without the VC++
-        # Redistributable fail with "MSVCP140.dll / VCRUNTIME140.dll not
-        # found". Deploy the CRT app-locally: copy the redist DLLs into the
-        # build output so the MSI wildcard harvest bundles them.
+      - name: Verify static EXE has no local DLL dependencies
+        # The x64-windows-static triplet + /MT must produce a fully
+        # self-contained EXE: fail the build if vcpkg deployed any DLLs
+        # next to it (that would mean something still links dynamically).
         run: |
-          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT" -Directory |
-            Sort-Object FullName | Select-Object -Last 1
-          if (-not $crt) { throw "VC++ redist CRT folder not found under $vs" }
-          Copy-Item "$($crt.FullName)\*.dll" build\Release\
-          Write-Host "Copied CRT from $($crt.FullName):"
-          Get-ChildItem build\Release\msvcp*.dll, build\Release\vcruntime*.dll, build\Release\concrt*.dll -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+          $dlls = Get-ChildItem build\Release\*.dll -ErrorAction SilentlyContinue
+          if ($dlls) { $dlls | ForEach-Object { Write-Host $_.Name }; throw "Static build unexpectedly produced DLLs" }
+          Write-Host "OK: no DLLs in build output — single-file EXE confirmed"
 
       - name: Install WiX v5
         # Pin to v5: newer WiX majors (v7+) require OSMF EULA acceptance.
@@ -111,5 +107,4 @@ jobs:
           name: SnapBGR-${{ github.sha }}
           path: |
             build\Release\*.exe
-            build\Release\*.dll
             build\SnapBGR-*.msi
