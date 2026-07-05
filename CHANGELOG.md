@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.5.1] - 2026-07-05
+
+### Fixed
+- Start Menu shortcut had no icon and could fail to launch the app: the
+  MSI used an "advertised" shortcut that resolves through a Windows
+  Installer stub. The shortcut now points directly at `SnapBGR.exe`.
+
 ## [1.5.0] - 2026-07-04
 
 ### Changed

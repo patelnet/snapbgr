@@ -28,7 +28,7 @@
 
   <Package Name="SnapBGR"
            Manufacturer="Dhaval"
-           Version="1.5.0"
+           Version="1.5.1"
            UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
            Scope="perUserOrMachine"
            Compressed="yes">
@@ -73,15 +73,21 @@
 
     <ComponentGroup Id="AppComponents" Directory="APPLICATIONFOLDER">
       <!-- BuildDir is passed via -d BuildDir=... on the wix command line. -->
+      <!-- Non-advertised shortcut: points straight at the EXE. Advertised
+           shortcuts resolve through Windows Installer (a stub target with
+           no extension), which renders no icon and can fail to launch if
+           MSI resiliency kicks in. -->
       <Component>
-        <File Id="MainExe" Source="$(BuildDir)\SnapBGR.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut"
-                    Directory="ShortcutDir"
-                    Name="SnapBGR"
-                    WorkingDirectory="APPLICATIONFOLDER"
-                    Icon="AppIcon"
-                    Advertise="yes" />
-        </File>
+        <File Id="MainExe" Source="$(BuildDir)\SnapBGR.exe" KeyPath="yes" />
+        <Shortcut Id="StartMenuShortcut"
+                  Directory="ShortcutDir"
+                  Name="SnapBGR"
+                  Target="[APPLICATIONFOLDER]SnapBGR.exe"
+                  WorkingDirectory="APPLICATIONFOLDER" />
+        <!-- No Icon attribute: the shortcut inherits the icon embedded in
+             SnapBGR.exe, which Explorer always renders. Referencing the
+             MSI Icon table would point at an extension-less stub file
+             that shows as a blank icon. -->
       </Component>
       <!-- Per-user installs need a registry KeyPath for non-EXE components. -->
       <Component>
