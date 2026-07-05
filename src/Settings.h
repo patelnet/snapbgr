@@ -22,11 +22,14 @@ public:
     const std::wstring& WatchedFolder() const noexcept { return m_watchedFolder; }
     const std::wstring& OutputFolder() const noexcept { return m_outputFolder; }
     const std::wstring& ModelPath() const noexcept { return m_modelPath; }
+    // Output format: L"png" (transparent, default) or L"jpg" (white background).
+    const std::wstring& OutputFormat() const noexcept { return m_outputFormat; }
     bool AutoStart() const noexcept { return m_autoStart; }
 
     void SetWatchedFolder(std::wstring folder);
     void SetOutputFolder(std::wstring folder);
     void SetModelPath(std::wstring path);
+    void SetOutputFormat(std::wstring format);
     void SetAutoStart(bool value);
 
     // Full path to settings.json (for diagnostics/UI).
@@ -36,6 +39,7 @@ private:
     std::wstring m_watchedFolder;
     std::wstring m_outputFolder;
     std::wstring m_modelPath;   // empty = look next to the EXE
+    std::wstring m_outputFormat = L"png";
     bool m_autoStart = false;
 };
 

@@ -101,6 +101,10 @@ void Settings::Load() {
             m_outputFolder = ToWide(j["outputFolder"].get<std::string>());
         if (j.contains("modelPath") && j["modelPath"].is_string())
             m_modelPath = ToWide(j["modelPath"].get<std::string>());
+        if (j.contains("outputFormat") && j["outputFormat"].is_string()) {
+            const auto f = ToWide(j["outputFormat"].get<std::string>());
+            if (f == L"png" || f == L"jpg") m_outputFormat = f;
+        }
         if (j.contains("autoStart") && j["autoStart"].is_boolean())
             m_autoStart = j["autoStart"].get<bool>();
     } catch (...) {
@@ -117,6 +121,7 @@ void Settings::Save() const {
         j["watchedFolder"] = ToUtf8(m_watchedFolder);
         j["outputFolder"] = ToUtf8(m_outputFolder);
         j["modelPath"] = ToUtf8(m_modelPath);
+        j["outputFormat"] = ToUtf8(m_outputFormat);
         j["autoStart"] = m_autoStart;
 
         // Write to a temp file first, then swap it in, to avoid torn writes.
@@ -147,6 +152,11 @@ void Settings::SetOutputFolder(std::wstring folder) {
 
 void Settings::SetModelPath(std::wstring path) {
     m_modelPath = std::move(path);
+    Save();
+}
+
+void Settings::SetOutputFormat(std::wstring format) {
+    m_outputFormat = (format == L"jpg") ? L"jpg" : L"png";
     Save();
 }
 

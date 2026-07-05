@@ -281,12 +281,13 @@ bool BackgroundRemovalService::IsGeneratedOutput(const std::wstring& path) {
     const fs::path p(path);
     std::wstring ext = p.extension().wstring();
     for (auto& c : ext) c = static_cast<wchar_t>(::towlower(c));
-    if (ext != L".png") return false;
+    if (ext != L".png" && ext != L".jpg" && ext != L".jpeg") return false;
     return p.stem().wstring().find(L"_nobg_") != std::wstring::npos;
 }
 
 std::optional<std::wstring> BackgroundRemovalService::ProcessImage(
-    const std::wstring& inputPath, const std::wstring& outputDir) {
+    const std::wstring& inputPath, const std::wstring& outputDir,
+    const std::wstring& format) {
     try {
         // imread does not accept wide paths; read bytes then decode instead
         // so Unicode paths work correctly.
@@ -316,22 +317,48 @@ std::optional<std::wstring> BackgroundRemovalService::ProcessImage(
         std::wcsftime(stamp, std::size(stamp), L"%Y%m%d-%H%M%S", &tm);
 
         const std::wstring stem = fs::path(inputPath).stem().wstring();
-        fs::path outPath = fs::path(outputDir) / (stem + L"_nobg_" + stamp + L".png");
+        const bool jpg = (format == L"jpg");
+        const std::wstring extOut = jpg ? L".jpg" : L".png";
+        fs::path outPath = fs::path(outputDir) / (stem + L"_nobg_" + stamp + extOut);
         // Extremely defensive: if two files land within the same second,
         // add a numeric disambiguator rather than replacing anything.
         for (int i = 1; fs::exists(outPath) && i < 1000; ++i) {
             outPath = fs::path(outputDir) /
-                      (stem + L"_nobg_" + stamp + L"_" + std::to_wstring(i) + L".png");
+                      (stem + L"_nobg_" + stamp + L"_" + std::to_wstring(i) + extOut);
+        }
+
+        // JPEG has no alpha channel: composite the cut-out subject onto a
+        // white background using the mask as blend weight.
+        cv::Mat encodeSrc;
+        std::vector<int> encodeParams;
+        if (jpg) {
+            std::vector<cv::Mat> ch;
+            cv::split(bgra, ch); // B, G, R, A
+            cv::Mat alpha;
+            ch[3].convertTo(alpha, CV_32FC1, 1.0 / 255.0);
+            cv::Mat white(bgra.rows, bgra.cols, CV_32FC1, cv::Scalar(255.0));
+            std::vector<cv::Mat> outCh(3);
+            for (int c = 0; c < 3; ++c) {
+                cv::Mat cf;
+                ch[c].convertTo(cf, CV_32FC1);
+                cv::Mat blended = cf.mul(alpha) + white.mul(1.0f - alpha);
+                blended.convertTo(outCh[c], CV_8UC1);
+            }
+            cv::merge(outCh, encodeSrc);
+            encodeParams = {cv::IMWRITE_JPEG_QUALITY, 95};
+        } else {
+            encodeSrc = bgra;
         }
 
         // imwrite has the same narrow-path limitation; encode to memory and
         // write bytes ourselves.
-        std::vector<uchar> png;
-        if (!cv::imencode(".png", bgra, png)) return std::nullopt;
+        std::vector<uchar> encoded;
+        if (!cv::imencode(jpg ? ".jpg" : ".png", encodeSrc, encoded, encodeParams))
+            return std::nullopt;
         std::ofstream out(outPath, std::ios::binary | std::ios::trunc);
         if (!out.is_open()) return std::nullopt;
-        out.write(reinterpret_cast<const char*>(png.data()),
-                  static_cast<std::streamsize>(png.size()));
+        out.write(reinterpret_cast<const char*>(encoded.data()),
+                  static_cast<std::streamsize>(encoded.size()));
         out.close();
 
         return outPath.wstring();

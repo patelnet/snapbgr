@@ -28,7 +28,7 @@
 
   <Package Name="SnapBGR"
            Manufacturer="Dhaval"
-           Version="1.5.1"
+           Version="1.6.0"
            UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
            Scope="perUserOrMachine"
            Compressed="yes">

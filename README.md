@@ -69,18 +69,20 @@ Right-click the tray icon:
 
 | Menu item | What it does |
 |---|---|
-| *Status header* | Watch state, file being processed, queue depth, done/failed counts, active model (family + resolution) |
+| *Status header* | Watch state, file being processed, queue depth, done/failed counts, active model (family + resolution), output format |
 | **Start / Stop Watching** | Toggle folder monitoring |
 | **Select Watched Folder…** | Choose which folder to monitor (persisted) |
-| **Select Output Folder…** | Choose where transparent PNGs go (persisted) |
+| **Select Output Folder…** | Choose where results go (persisted) |
 | **Open Output Folder** | Jump straight to your results |
 | **Select Model…** | Pick any `.onnx` background-removal model |
 | **Get Compatible Models** | Opens the model download catalog |
+| **Output Format** | PNG (transparent, default) or JPG (white background) |
 | **Exit** | Quit the app |
 
 Copy or save any image into the watched folder and a
-`<name>_nobg_<timestamp>.png` with a transparent background appears in
-the output folder within seconds. Originals are never modified.
+`<name>_nobg_<timestamp>.png` with a transparent background (or `.jpg`
+with a white background, if you prefer) appears in the output folder
+within seconds. Originals are never modified.
 
 ## AI models
 

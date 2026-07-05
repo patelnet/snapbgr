@@ -91,5 +91,37 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     std::wprintf(L"[PASS] Pipeline produced a valid transparent PNG.\n");
+
+    // --- JPG output mode: no alpha; subject composited onto white. ----------
+    const auto jpgResult = service.ProcessImage(input, outDir.wstring(), L"jpg");
+    if (!jpgResult) {
+        std::wprintf(L"[FAIL] ProcessImage (jpg) returned no output path.\n");
+        return 4;
+    }
+    std::wprintf(L"[test] JPG output: %s\n", jpgResult->c_str());
+    if (fs::path(*jpgResult).extension() != L".jpg") {
+        std::wprintf(L"[FAIL] JPG output does not have a .jpg extension.\n");
+        return 5;
+    }
+    std::ifstream inJpg(fs::path(*jpgResult), std::ios::binary);
+    std::vector<char> jpgBytes((std::istreambuf_iterator<char>(inJpg)),
+                               std::istreambuf_iterator<char>());
+    cv::Mat jpg = cv::imdecode(
+        cv::Mat(1, static_cast<int>(jpgBytes.size()), CV_8UC1, jpgBytes.data()),
+        cv::IMREAD_UNCHANGED);
+    if (jpg.empty() || jpg.channels() != 3) {
+        std::wprintf(L"[FAIL] JPG output is not a 3-channel image (channels=%d).\n",
+                     jpg.empty() ? 0 : jpg.channels());
+        return 6;
+    }
+    // The masked-out corners must have been filled with (near-)white.
+    const cv::Vec3b corner = jpg.at<cv::Vec3b>(2, 2);
+    if (corner[0] < 200 || corner[1] < 200 || corner[2] < 200) {
+        std::wprintf(L"[FAIL] JPG background is not white (corner=%d,%d,%d).\n",
+                     corner[0], corner[1], corner[2]);
+        return 7;
+    }
+
+    std::wprintf(L"[PASS] JPG output mode produced a white-background image.\n");
     return 0;
 }

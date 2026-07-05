@@ -47,6 +47,15 @@ public:
     void SetOnSelectOutput(std::function<void()> cb) { m_onSelectOutput = std::move(cb); }
     void SetOnSelectModel(std::function<void()> cb) { m_onSelectModel = std::move(cb); }
     void SetOnGetModels(std::function<void()> cb) { m_onGetModels = std::move(cb); }
+    // Called with L"png" or L"jpg" when the user picks an output format.
+    void SetOnSelectFormat(std::function<void(const std::wstring&)> cb) {
+        m_onSelectFormat = std::move(cb);
+    }
+    // Returns the current format (L"png"/L"jpg") so the menu can show a
+    // radio check next to the active choice.
+    void SetFormatProvider(std::function<std::wstring()> cb) {
+        m_formatProvider = std::move(cb);
+    }
 
     // Called right before the menu opens; returns status lines rendered as
     // disabled items at the top of the menu (state, queue depth, model, ...).
@@ -71,6 +80,8 @@ private:
     std::function<void()> m_onSelectOutput;
     std::function<void()> m_onSelectModel;
     std::function<void()> m_onGetModels;
+    std::function<void(const std::wstring&)> m_onSelectFormat;
+    std::function<std::wstring()> m_formatProvider;
     std::function<std::vector<std::wstring>()> m_statusProvider;
 };
 

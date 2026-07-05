@@ -287,7 +287,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         std::optional<std::wstring> out;
         {
             std::lock_guard<std::mutex> lock(serviceMutex);
-            out = service.ProcessImage(path, settings.OutputFolder());
+            out = service.ProcessImage(path, settings.OutputFolder(),
+                                       settings.OutputFormat());
         }
         auto name = std::filesystem::path(path).filename().wstring();
         if (out) {
@@ -360,6 +361,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                                       L" (" + service.ProfileSummary() + L")"
                                 : L"Model: none (synthetic mask)");
         }
+        lines.push_back(settings.OutputFormat() == L"jpg"
+                            ? L"Format: JPG (white background)"
+                            : L"Format: PNG (transparent)");
         return lines;
     });
 
@@ -407,6 +411,13 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         // Opens the models guide: download links + license checklist for
         // compatible matting models (MODNet etc.).
         ::ShellExecuteW(nullptr, L"open", kModelsHelpUrl, nullptr, nullptr, SW_SHOWNORMAL);
+    });
+    tray.SetFormatProvider([&] { return settings.OutputFormat(); });
+    tray.SetOnSelectFormat([&](const std::wstring& fmt) {
+        settings.SetOutputFormat(fmt);
+        tray.ShowBalloon(L"Output format set",
+                         fmt == L"jpg" ? L"JPG (white background)"
+                                       : L"PNG (transparent)");
     });
     tray.SetOnExit([] { ::PostQuitMessage(0); });
 

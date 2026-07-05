@@ -14,6 +14,8 @@ constexpr UINT ID_MENU_SELECT_WATCHED = 1005;
 constexpr UINT ID_MENU_SELECT_OUTPUT = 1006;
 constexpr UINT ID_MENU_SELECT_MODEL = 1007;
 constexpr UINT ID_MENU_GET_MODELS = 1008;
+constexpr UINT ID_MENU_FORMAT_PNG = 1009;
+constexpr UINT ID_MENU_FORMAT_JPG = 1010;
 constexpr wchar_t kWndClass[] = L"SnapBGRTrayWnd";
 } // namespace
 
@@ -117,6 +119,17 @@ void TrayController::ShowContextMenu() {
     ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     ::AppendMenuW(menu, MF_STRING, ID_MENU_SELECT_MODEL, L"Select Model…");
     ::AppendMenuW(menu, MF_STRING, ID_MENU_GET_MODELS, L"Get Compatible Models");
+    // Output format submenu with a radio check on the active choice.
+    HMENU formatMenu = ::CreatePopupMenu();
+    if (formatMenu) {
+        const std::wstring fmt = m_formatProvider ? m_formatProvider() : L"png";
+        ::AppendMenuW(formatMenu, MF_STRING | (fmt == L"png" ? MF_CHECKED : 0u),
+                      ID_MENU_FORMAT_PNG, L"PNG (transparent)");
+        ::AppendMenuW(formatMenu, MF_STRING | (fmt == L"jpg" ? MF_CHECKED : 0u),
+                      ID_MENU_FORMAT_JPG, L"JPG (white background)");
+        ::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(formatMenu),
+                      L"Output Format");
+    }
     ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     ::AppendMenuW(menu, MF_STRING, ID_MENU_EXIT, L"Exit");
 
@@ -137,6 +150,8 @@ void TrayController::ShowContextMenu() {
     case ID_MENU_SELECT_OUTPUT:  if (m_onSelectOutput) m_onSelectOutput(); break;
     case ID_MENU_SELECT_MODEL:   if (m_onSelectModel) m_onSelectModel(); break;
     case ID_MENU_GET_MODELS:     if (m_onGetModels) m_onGetModels(); break;
+    case ID_MENU_FORMAT_PNG:     if (m_onSelectFormat) m_onSelectFormat(L"png"); break;
+    case ID_MENU_FORMAT_JPG:     if (m_onSelectFormat) m_onSelectFormat(L"jpg"); break;
     case ID_MENU_EXIT:           if (m_onExit) m_onExit(); break;
     default: break;
     }

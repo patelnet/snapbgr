@@ -81,12 +81,15 @@ public:
     // to the same directory would re-process every result forever.
     static bool IsGeneratedOutput(const std::wstring& path);
 
-    // Processes `inputPath` and writes a BGRA PNG to `outputDir`.
-    // The output filename is "<stem>_nobg_<timestamp>.png" — timestamps
+    // Processes `inputPath` and writes the result to `outputDir`.
+    // `format` is L"png" (default: transparent BGRA PNG) or L"jpg"
+    // (no alpha — the subject is composited onto a white background).
+    // The output filename is "<stem>_nobg_<timestamp>.<ext>" — timestamps
     // avoid ever overwriting existing user files.
     // Returns the full output path, or std::nullopt on failure.
     std::optional<std::wstring> ProcessImage(const std::wstring& inputPath,
-                                             const std::wstring& outputDir);
+                                             const std::wstring& outputDir,
+                                             const std::wstring& format = L"png");
 
     // --- Pipeline stages, public for testing --------------------------------
 

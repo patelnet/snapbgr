@@ -121,7 +121,8 @@ void AppState::ProcessFileAsync(std::wstring fullPath) {
         }
 
         UpdateStatus(L"Processing " + fs::path(path).filename().wstring());
-        const auto result = m_service.ProcessImage(path, OutputFolder());
+        const auto result = m_service.ProcessImage(path, OutputFolder(),
+                                                   m_settings.OutputFormat());
         if (result) {
             Log(L"Saved: " + *result);
             UpdateStatus(L"Done");

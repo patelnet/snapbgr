@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.6.0] - 2026-07-05
+
+### Added
+- **JPG output option**: new *Output Format* submenu in the tray menu —
+  PNG (transparent, default) or JPG (subject composited onto a white
+  background, quality 95). The choice is persisted in settings and shown
+  in the tray status header.
+
 ## [1.5.1] - 2026-07-05
 
 ### Fixed
