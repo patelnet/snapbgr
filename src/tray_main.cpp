@@ -193,6 +193,47 @@ std::wstring Abbreviate(const std::wstring& path, size_t max = 48) {
     return L"…" + path.substr(path.size() - max + 1);
 }
 
+// Threads to allow for image processing under a given throttle mode.
+// 0 = library default (all cores).
+int ThreadsForThrottle(const std::wstring& mode) {
+    if (mode == L"efficiency") return 1;
+    if (mode == L"low") {
+        const unsigned hw = std::thread::hardware_concurrency();
+        return static_cast<int>(hw > 1 ? hw / 2 : 1);
+    }
+    return 0;
+}
+
+// Applies the process-wide half of the throttle: scheduling priority and
+// EcoQoS power throttling (Windows 11 / Windows 10 1709+; the call is a
+// harmless no-op on older builds). Thread-pool limits are applied
+// separately via BackgroundRemovalService::SetMaxThreads and
+// cv::setNumThreads.
+void ApplyProcessThrottle(const std::wstring& mode) {
+    DWORD priority = NORMAL_PRIORITY_CLASS;
+    if (mode == L"low") priority = BELOW_NORMAL_PRIORITY_CLASS;
+    else if (mode == L"efficiency") priority = IDLE_PRIORITY_CLASS;
+    ::SetPriorityClass(::GetCurrentProcess(), priority);
+
+#ifdef PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+    // EcoQoS: schedules the process on efficiency cores at reduced clocks.
+    PROCESS_POWER_THROTTLING_STATE state{};
+    state.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
+    state.ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED;
+    state.StateMask = (mode == L"efficiency")
+                          ? PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+                          : 0; // 0 with the mask set = explicitly off
+    ::SetProcessInformation(::GetCurrentProcess(), ProcessPowerThrottling,
+                            &state, sizeof(state));
+#endif
+}
+
+const wchar_t* ThrottleLabel(const std::wstring& mode) {
+    if (mode == L"efficiency") return L"Efficiency (power saving, single core)";
+    if (mode == L"low") return L"Low (background priority, half the cores)";
+    return L"Normal (full speed)";
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
@@ -225,6 +266,18 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
 
     // Tracks which model file actually loaded, for the status display.
     std::wstring activeModelPath;
+
+    // Applies the persisted CPU throttle: process priority + EcoQoS, plus
+    // thread caps for OpenCV and (via SetMaxThreads) the next ORT session.
+    auto applyThrottle = [&](const std::wstring& mode) {
+        const int threads = ThreadsForThrottle(mode);
+        ApplyProcessThrottle(mode);
+        // OpenCV: negative resets to the default (all cores).
+        cv::setNumThreads(threads > 0 ? threads : -1);
+        std::lock_guard<std::mutex> lock(serviceMutex);
+        service.SetMaxThreads(threads);
+    };
+    applyThrottle(settings.CpuThrottle());
 
     // Model resolution order — no fixed filename required:
     //   1. The explicitly selected model (Select Model…, persisted).
@@ -364,6 +417,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         lines.push_back(settings.OutputFormat() == L"jpg"
                             ? L"Format: JPG (white background)"
                             : L"Format: PNG (transparent)");
+        if (settings.CpuThrottle() != L"normal") {
+            lines.push_back(std::wstring(L"CPU: ") +
+                            ThrottleLabel(settings.CpuThrottle()));
+        }
         return lines;
     });
 
@@ -418,6 +475,15 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         tray.ShowBalloon(L"Output format set",
                          fmt == L"jpg" ? L"JPG (white background)"
                                        : L"PNG (transparent)");
+    });
+    tray.SetThrottleProvider([&] { return settings.CpuThrottle(); });
+    tray.SetOnSelectThrottle([&](const std::wstring& mode) {
+        settings.SetCpuThrottle(mode);
+        applyThrottle(settings.CpuThrottle());
+        // ORT thread pools are fixed at session creation — reload so the
+        // new cap takes effect immediately.
+        loadModel();
+        tray.ShowBalloon(L"CPU usage set", ThrottleLabel(settings.CpuThrottle()));
     });
     tray.SetOnExit([] { ::PostQuitMessage(0); });
 

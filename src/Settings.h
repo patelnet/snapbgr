@@ -24,12 +24,16 @@ public:
     const std::wstring& ModelPath() const noexcept { return m_modelPath; }
     // Output format: L"png" (transparent, default) or L"jpg" (white background).
     const std::wstring& OutputFormat() const noexcept { return m_outputFormat; }
+    // CPU throttle mode: L"normal" (default), L"low" (below-normal priority,
+    // half the cores) or L"efficiency" (EcoQoS power throttling, one core).
+    const std::wstring& CpuThrottle() const noexcept { return m_cpuThrottle; }
     bool AutoStart() const noexcept { return m_autoStart; }
 
     void SetWatchedFolder(std::wstring folder);
     void SetOutputFolder(std::wstring folder);
     void SetModelPath(std::wstring path);
     void SetOutputFormat(std::wstring format);
+    void SetCpuThrottle(std::wstring mode);
     void SetAutoStart(bool value);
 
     // Full path to settings.json (for diagnostics/UI).
@@ -40,6 +44,7 @@ private:
     std::wstring m_outputFolder;
     std::wstring m_modelPath;   // empty = look next to the EXE
     std::wstring m_outputFormat = L"png";
+    std::wstring m_cpuThrottle = L"normal";
     bool m_autoStart = false;
 };
 

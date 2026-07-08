@@ -56,6 +56,15 @@ public:
     void SetFormatProvider(std::function<std::wstring()> cb) {
         m_formatProvider = std::move(cb);
     }
+    // Called with L"normal", L"low" or L"efficiency" when the user picks a
+    // CPU usage mode.
+    void SetOnSelectThrottle(std::function<void(const std::wstring&)> cb) {
+        m_onSelectThrottle = std::move(cb);
+    }
+    // Returns the current throttle mode so the menu can check the active choice.
+    void SetThrottleProvider(std::function<std::wstring()> cb) {
+        m_throttleProvider = std::move(cb);
+    }
 
     // Called right before the menu opens; returns status lines rendered as
     // disabled items at the top of the menu (state, queue depth, model, ...).
@@ -82,6 +91,8 @@ private:
     std::function<void()> m_onGetModels;
     std::function<void(const std::wstring&)> m_onSelectFormat;
     std::function<std::wstring()> m_formatProvider;
+    std::function<void(const std::wstring&)> m_onSelectThrottle;
+    std::function<std::wstring()> m_throttleProvider;
     std::function<std::vector<std::wstring>()> m_statusProvider;
 };
 

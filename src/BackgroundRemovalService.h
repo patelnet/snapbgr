@@ -53,6 +53,11 @@ public:
     BackgroundRemovalService(const BackgroundRemovalService&) = delete;
     BackgroundRemovalService& operator=(const BackgroundRemovalService&) = delete;
 
+    // Caps the number of threads ONNX Runtime may use for inference.
+    // 0 (default) lets ORT pick (all cores). Takes effect on the next
+    // LoadModel() call — sessions bind their thread pool at creation.
+    void SetMaxThreads(int threads) noexcept { m_maxThreads = threads; }
+
     // Attempts to load an ONNX model (any filename). Returns true on
     // success. On failure the service remains usable via the synthetic
     // fallback. The preprocessing profile is derived from the file name and
@@ -117,6 +122,7 @@ private:
     std::unique_ptr<Ort::Session> m_session;
     ModelProfile m_profile;
     bool m_modelLoaded = false;
+    int m_maxThreads = 0; // 0 = ORT default (all cores)
 };
 
 } // namespace rmbg

@@ -105,6 +105,10 @@ void Settings::Load() {
             const auto f = ToWide(j["outputFormat"].get<std::string>());
             if (f == L"png" || f == L"jpg") m_outputFormat = f;
         }
+        if (j.contains("cpuThrottle") && j["cpuThrottle"].is_string()) {
+            const auto t = ToWide(j["cpuThrottle"].get<std::string>());
+            if (t == L"normal" || t == L"low" || t == L"efficiency") m_cpuThrottle = t;
+        }
         if (j.contains("autoStart") && j["autoStart"].is_boolean())
             m_autoStart = j["autoStart"].get<bool>();
     } catch (...) {
@@ -122,6 +126,7 @@ void Settings::Save() const {
         j["outputFolder"] = ToUtf8(m_outputFolder);
         j["modelPath"] = ToUtf8(m_modelPath);
         j["outputFormat"] = ToUtf8(m_outputFormat);
+        j["cpuThrottle"] = ToUtf8(m_cpuThrottle);
         j["autoStart"] = m_autoStart;
 
         // Write to a temp file first, then swap it in, to avoid torn writes.
@@ -157,6 +162,12 @@ void Settings::SetModelPath(std::wstring path) {
 
 void Settings::SetOutputFormat(std::wstring format) {
     m_outputFormat = (format == L"jpg") ? L"jpg" : L"png";
+    Save();
+}
+
+void Settings::SetCpuThrottle(std::wstring mode) {
+    m_cpuThrottle = (mode == L"low" || mode == L"efficiency") ? std::move(mode)
+                                                              : L"normal";
     Save();
 }
 

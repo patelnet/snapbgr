@@ -114,6 +114,12 @@ bool BackgroundRemovalService::LoadModel(const std::wstring& modelPath) {
         m_env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "SnapBGR");
         Ort::SessionOptions options;
         options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
+        if (m_maxThreads > 0) {
+            // CPU throttling: cap both intra-op (parallel kernels) and
+            // inter-op (parallel nodes) thread pools.
+            options.SetIntraOpNumThreads(m_maxThreads);
+            options.SetInterOpNumThreads(1);
+        }
         // Ort::Session takes wide-char paths on Windows.
         m_session = std::make_unique<Ort::Session>(*m_env, modelPath.c_str(), options);
 

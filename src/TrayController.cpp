@@ -16,6 +16,9 @@ constexpr UINT ID_MENU_SELECT_MODEL = 1007;
 constexpr UINT ID_MENU_GET_MODELS = 1008;
 constexpr UINT ID_MENU_FORMAT_PNG = 1009;
 constexpr UINT ID_MENU_FORMAT_JPG = 1010;
+constexpr UINT ID_MENU_CPU_NORMAL = 1011;
+constexpr UINT ID_MENU_CPU_LOW = 1012;
+constexpr UINT ID_MENU_CPU_EFFICIENCY = 1013;
 constexpr wchar_t kWndClass[] = L"SnapBGRTrayWnd";
 } // namespace
 
@@ -130,6 +133,19 @@ void TrayController::ShowContextMenu() {
         ::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(formatMenu),
                       L"Output Format");
     }
+    // CPU usage submenu: trade processing speed for system responsiveness.
+    HMENU cpuMenu = ::CreatePopupMenu();
+    if (cpuMenu) {
+        const std::wstring mode = m_throttleProvider ? m_throttleProvider() : L"normal";
+        ::AppendMenuW(cpuMenu, MF_STRING | (mode == L"normal" ? MF_CHECKED : 0u),
+                      ID_MENU_CPU_NORMAL, L"Normal (full speed)");
+        ::AppendMenuW(cpuMenu, MF_STRING | (mode == L"low" ? MF_CHECKED : 0u),
+                      ID_MENU_CPU_LOW, L"Low (background priority, half the cores)");
+        ::AppendMenuW(cpuMenu, MF_STRING | (mode == L"efficiency" ? MF_CHECKED : 0u),
+                      ID_MENU_CPU_EFFICIENCY, L"Efficiency (power saving, single core)");
+        ::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(cpuMenu),
+                      L"CPU Usage");
+    }
     ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     ::AppendMenuW(menu, MF_STRING, ID_MENU_EXIT, L"Exit");
 
@@ -152,6 +168,9 @@ void TrayController::ShowContextMenu() {
     case ID_MENU_GET_MODELS:     if (m_onGetModels) m_onGetModels(); break;
     case ID_MENU_FORMAT_PNG:     if (m_onSelectFormat) m_onSelectFormat(L"png"); break;
     case ID_MENU_FORMAT_JPG:     if (m_onSelectFormat) m_onSelectFormat(L"jpg"); break;
+    case ID_MENU_CPU_NORMAL:     if (m_onSelectThrottle) m_onSelectThrottle(L"normal"); break;
+    case ID_MENU_CPU_LOW:        if (m_onSelectThrottle) m_onSelectThrottle(L"low"); break;
+    case ID_MENU_CPU_EFFICIENCY: if (m_onSelectThrottle) m_onSelectThrottle(L"efficiency"); break;
     case ID_MENU_EXIT:           if (m_onExit) m_onExit(); break;
     default: break;
     }

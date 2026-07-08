@@ -77,6 +77,7 @@ Right-click the tray icon:
 | **Select Model…** | Pick any `.onnx` background-removal model |
 | **Get Compatible Models** | Opens the model download catalog |
 | **Output Format** | PNG (transparent, default) or JPG (white background) |
+| **CPU Usage** | Normal (full speed), Low (background priority, half the cores) or Efficiency (power saving, single core) |
 | **Exit** | Quit the app |
 
 Copy or save any image into the watched folder and a

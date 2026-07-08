@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.7.0] - 2026-07-07
+
+### Added
+- **CPU Usage throttle**: new *CPU Usage* submenu in the tray menu —
+  *Normal* (full speed, default), *Low* (below-normal process priority,
+  half the CPU cores) or *Efficiency* (EcoQoS power throttling on
+  Windows 11, idle priority, single core). Limits both the ONNX Runtime
+  and OpenCV thread pools, is persisted in settings, and non-default
+  modes are shown in the tray status header.
+
 ## [1.6.0] - 2026-07-05
 
 ### Added
