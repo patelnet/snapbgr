@@ -18,6 +18,11 @@ namespace rmbg {
 // (the UI thread); Shell_NotifyIcon is thread-affine.
 class TrayController {
 public:
+    // Window class name of the hidden message window. Secondary instances
+    // use it with FindWindow to locate the running app and forward
+    // on-demand processing requests via WM_COPYDATA.
+    static constexpr const wchar_t* kWindowClassName = L"SnapBGRTrayWnd";
+
     TrayController() = default;
     ~TrayController();
 
@@ -74,6 +79,11 @@ public:
     void SetAutostartProvider(std::function<bool()> cb) {
         m_autostartProvider = std::move(cb);
     }
+    // Called with a file path when another instance forwards an on-demand
+    // processing request (Explorer context menu) via WM_COPYDATA.
+    void SetOnCopyData(std::function<void(const std::wstring&)> cb) {
+        m_onCopyData = std::move(cb);
+    }
 
     // Called right before the menu opens; returns status lines rendered as
     // disabled items at the top of the menu (state, queue depth, model, ...).
@@ -104,6 +114,7 @@ private:
     std::function<std::wstring()> m_throttleProvider;
     std::function<void()> m_onToggleAutostart;
     std::function<bool()> m_autostartProvider;
+    std::function<void(const std::wstring&)> m_onCopyData;
     std::function<std::vector<std::wstring>()> m_statusProvider;
 };
 

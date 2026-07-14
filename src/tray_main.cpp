@@ -110,12 +110,20 @@ std::optional<std::wstring> ShowPicker(bool pickFolders, const wchar_t* title,
     return result;
 }
 
+// A unit of processing work. `outputDir` empty means "use the configured
+// output folder"; on-demand context-menu requests set it to the source
+// file's own folder so results land next to the original.
+struct WorkItem {
+    std::wstring path;
+    std::wstring outputDir;
+};
+
 // Simple single-worker task queue so image processing never blocks the
 // watcher or UI threads. Exposes queue depth + current item for the
 // status display in the tray menu.
 class WorkQueue {
 public:
-    void Start(std::function<void(const std::wstring&)> handler) {
+    void Start(std::function<void(const WorkItem&)> handler) {
         m_handler = std::move(handler);
         m_running = true;
         m_thread = std::thread([this] { Run(); });
@@ -130,10 +138,10 @@ public:
         if (m_thread.joinable()) m_thread.join();
     }
 
-    void Enqueue(std::wstring path) {
+    void Enqueue(WorkItem item) {
         {
             std::lock_guard<std::mutex> lock(m_mutex);
-            m_items.push(std::move(path));
+            m_items.push(std::move(item));
         }
         m_cv.notify_one();
     }
@@ -154,7 +162,7 @@ public:
 private:
     void Run() {
         for (;;) {
-            std::wstring item;
+            WorkItem item;
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
                 m_cv.wait(lock, [this] { return !m_running || !m_items.empty(); });
@@ -162,7 +170,7 @@ private:
                 if (m_items.empty()) continue;
                 item = std::move(m_items.front());
                 m_items.pop();
-                m_current = std::filesystem::path(item).filename().wstring();
+                m_current = std::filesystem::path(item.path).filename().wstring();
             }
             m_handler(item);
             {
@@ -172,11 +180,11 @@ private:
         }
     }
 
-    std::function<void(const std::wstring&)> m_handler;
+    std::function<void(const WorkItem&)> m_handler;
     std::thread m_thread;
     std::mutex m_mutex;
     std::condition_variable m_cv;
-    std::queue<std::wstring> m_items;
+    std::queue<WorkItem> m_items;
     std::wstring m_current;
     bool m_running = false;
 };
@@ -276,9 +284,147 @@ bool SetAutostartEnabled(bool enable) {
     return st == ERROR_SUCCESS;
 }
 
+// Model resolution order — no fixed filename required:
+//   1. The explicitly selected model (Select Model…, persisted).
+//   2. Any *.onnx in %LOCALAPPDATA%\SnapBGR\models (drop-in; no rename).
+//   3. Any *.onnx next to the EXE.
+// Candidates are tried alphabetically until one loads. Returns the path
+// that loaded, or empty (the service then uses the synthetic mask).
+std::wstring LoadBestModel(rmbg::BackgroundRemovalService& service,
+                           const rmbg::Settings& settings) {
+    if (!settings.ModelPath().empty() && service.LoadModel(settings.ModelPath())) {
+        return settings.ModelPath();
+    }
+    const std::vector<std::filesystem::path> searchDirs = {
+        std::filesystem::path(rmbg::Settings::SettingsFilePath()).parent_path() / L"models",
+        ExeDirectory(),
+    };
+    for (const auto& dir : searchDirs) {
+        std::error_code iterEc;
+        std::vector<std::filesystem::path> candidates;
+        for (const auto& entry : std::filesystem::directory_iterator(dir, iterEc)) {
+            if (!entry.is_regular_file(iterEc)) continue;
+            auto ext = entry.path().extension().wstring();
+            for (auto& c : ext) c = static_cast<wchar_t>(::towlower(c));
+            if (ext == L".onnx") candidates.push_back(entry.path());
+        }
+        std::sort(candidates.begin(), candidates.end());
+        for (const auto& candidate : candidates) {
+            if (service.LoadModel(candidate.wstring())) {
+                return candidate.wstring();
+            }
+        }
+    }
+    return {};
+}
+
+// --- Explorer context menu ("Remove Background") ---------------------------
+// Registered per-user under SystemFileAssociations for each supported image
+// extension — no elevation needed, no shell extension DLL. The command
+// re-launches the EXE with `--process "<file>"`.
+constexpr const wchar_t* kContextExts[] = {L".jpg", L".jpeg", L".png", L".bmp",
+                                           L".webp", L".tif", L".tiff"};
+constexpr wchar_t kContextVerb[] = L"SnapBGR.RemoveBackground";
+
+std::wstring ContextKeyForExt(const std::wstring& ext) {
+    return L"Software\\Classes\\SystemFileAssociations\\" + ext +
+           L"\\shell\\" + kContextVerb;
+}
+
+void SetRegString(const std::wstring& key, const wchar_t* name,
+                  const std::wstring& value) {
+    HKEY h = nullptr;
+    if (::RegCreateKeyExW(HKEY_CURRENT_USER, key.c_str(), 0, nullptr, 0,
+                          KEY_SET_VALUE, nullptr, &h, nullptr) == ERROR_SUCCESS) {
+        ::RegSetValueExW(h, name, 0, REG_SZ,
+                         reinterpret_cast<const BYTE*>(value.c_str()),
+                         static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+        ::RegCloseKey(h);
+    }
+}
+
+// Idempotent; called on every startup so the registered EXE path stays
+// current even if the app is moved (portable use).
+void RegisterContextMenu() {
+    wchar_t exe[MAX_PATH]{};
+    ::GetModuleFileNameW(nullptr, exe, MAX_PATH);
+    const std::wstring exePath = exe;
+    for (const auto* ext : kContextExts) {
+        const std::wstring key = ContextKeyForExt(ext);
+        SetRegString(key, nullptr, L"Remove Background");
+        SetRegString(key, L"Icon", exePath); // menu shows the EXE's icon
+        SetRegString(key + L"\\command", nullptr,
+                     L"\"" + exePath + L"\" --process \"%1\"");
+    }
+}
+
+void UnregisterContextMenu() {
+    for (const auto* ext : kContextExts) {
+        ::RegDeleteTreeW(HKEY_CURRENT_USER, ContextKeyForExt(ext).c_str());
+    }
+}
+
+// Handles `--process <file>` (Explorer context menu). The result is written
+// NEXT TO the original file, not to the configured output folder. If the
+// tray app is running, the request is forwarded to it (shared queue, status
+// display, balloons); otherwise the file is processed here, one-shot.
+int HandleOnDemand(const std::wstring& file) {
+    if (HWND hwnd = ::FindWindowW(rmbg::TrayController::kWindowClassName, nullptr)) {
+        COPYDATASTRUCT cds{};
+        cds.dwData = 1;
+        cds.lpData = const_cast<wchar_t*>(file.c_str());
+        cds.cbData = static_cast<DWORD>((file.size() + 1) * sizeof(wchar_t));
+        ::SendMessageW(hwnd, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds));
+        return 0;
+    }
+
+    rmbg::Settings settings;
+    settings.Load();
+    const int threads = ThreadsForThrottle(settings.CpuThrottle());
+    ApplyProcessThrottle(settings.CpuThrottle());
+    cv::setNumThreads(threads > 0 ? threads : -1);
+
+    rmbg::BackgroundRemovalService service;
+    service.SetMaxThreads(threads);
+    LoadBestModel(service, settings);
+
+    const std::wstring outDir = std::filesystem::path(file).parent_path().wstring();
+    const auto out = service.ProcessImage(file, outDir, settings.OutputFormat());
+    if (!out) {
+        ::MessageBoxW(nullptr, (L"Could not remove the background from:\n" + file).c_str(),
+                      L"SnapBGR", MB_ICONERROR | MB_OK);
+        return 1;
+    }
+    return 0; // success is silent — the result appears next to the original
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+    // Command-line modes (used by the Explorer context menu / uninstaller)
+    // are handled before the single-instance check.
+    {
+        int argc = 0;
+        LPWSTR* argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+        std::wstring processFile;
+        bool unregister = false;
+        for (int i = 1; argv && i < argc; ++i) {
+            if (::_wcsicmp(argv[i], L"--process") == 0 && i + 1 < argc) {
+                processFile = argv[++i];
+            } else if (::_wcsicmp(argv[i], L"--unregister") == 0) {
+                unregister = true;
+            }
+        }
+        if (argv) ::LocalFree(argv);
+        if (unregister) { // MSI uninstall cleanup
+            UnregisterContextMenu();
+            return 0;
+        }
+        if (!processFile.empty()) {
+            return HandleOnDemand(processFile);
+        }
+    }
+
     // Single instance: a second launch just exits (the tray icon already
     // provides all interaction points).
     HANDLE mutex = ::CreateMutexW(nullptr, TRUE, L"Local\\SnapBGRTrayApp");
@@ -301,6 +447,10 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     std::filesystem::create_directories(settings.OutputFolder(), ec);
     settings.Save();
 
+    // Keep the Explorer "Remove Background" context menu registered and
+    // pointing at this EXE (per-user, idempotent).
+    RegisterContextMenu();
+
     rmbg::BackgroundRemovalService service;
     // The worker thread runs inference while the main thread may reload the
     // model (Select Model…); serialize access.
@@ -321,44 +471,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     };
     applyThrottle(settings.CpuThrottle());
 
-    // Model resolution order — no fixed filename required:
-    //   1. The explicitly selected model (Select Model…, persisted).
-    //   2. Any *.onnx in %LOCALAPPDATA%\SnapBGR\models
-    //      (drop-in folder; no rename needed).
-    //   3. Any *.onnx next to the EXE.
-    // Candidates are tried alphabetically until one loads; missing/invalid
+    // See LoadBestModel for the model resolution order. Missing/invalid
     // models fall back to the synthetic mask.
     auto loadModel = [&]() -> bool {
         std::lock_guard<std::mutex> lock(serviceMutex);
-        activeModelPath.clear();
-
-        if (!settings.ModelPath().empty() && service.LoadModel(settings.ModelPath())) {
-            activeModelPath = settings.ModelPath();
-            return true;
-        }
-
-        std::vector<std::filesystem::path> searchDirs = {
-            std::filesystem::path(rmbg::Settings::SettingsFilePath()).parent_path() / L"models",
-            ExeDirectory(),
-        };
-        for (const auto& dir : searchDirs) {
-            std::error_code iterEc;
-            std::vector<std::filesystem::path> candidates;
-            for (const auto& entry : std::filesystem::directory_iterator(dir, iterEc)) {
-                if (!entry.is_regular_file(iterEc)) continue;
-                auto ext = entry.path().extension().wstring();
-                for (auto& c : ext) c = static_cast<wchar_t>(::towlower(c));
-                if (ext == L".onnx") candidates.push_back(entry.path());
-            }
-            std::sort(candidates.begin(), candidates.end());
-            for (const auto& candidate : candidates) {
-                if (service.LoadModel(candidate.wstring())) {
-                    activeModelPath = candidate.wstring();
-                    return true;
-                }
-            }
-        }
-        return false;
+        activeModelPath = LoadBestModel(service, settings);
+        return !activeModelPath.empty();
     };
     loadModel();
 
@@ -369,7 +487,8 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     std::atomic<int> processedCount{0};
     std::atomic<int> failedCount{0};
 
-    work.Start([&](const std::wstring& path) {
+    work.Start([&](const WorkItem& item) {
+        const std::wstring& path = item.path;
         if (!IsImageFile(path)) return;
         // New files may still be mid-copy; wait until the file opens for
         // exclusive read or ~3 s elapse.
@@ -382,7 +501,9 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         std::optional<std::wstring> out;
         {
             std::lock_guard<std::mutex> lock(serviceMutex);
-            out = service.ProcessImage(path, settings.OutputFolder(),
+            out = service.ProcessImage(path,
+                                       item.outputDir.empty() ? settings.OutputFolder()
+                                                              : item.outputDir,
                                        settings.OutputFormat());
         }
         auto name = std::filesystem::path(path).filename().wstring();
@@ -414,7 +535,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
                 // Skip our own outputs so watch folder == output folder
                 // does not loop forever on freshly written PNGs.
                 if (rmbg::BackgroundRemovalService::IsGeneratedOutput(fullPath)) return;
-                work.Enqueue(fullPath);
+                work.Enqueue({fullPath, L""});
             });
         if (ok) {
             tray.SetTooltip(L"SnapBGR — watching " + settings.WatchedFolder());
@@ -540,6 +661,12 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         }
     });
     tray.SetOnExit([] { ::PostQuitMessage(0); });
+    // On-demand requests forwarded from the Explorer context menu (via a
+    // short-lived second instance). Output goes next to the original file.
+    tray.SetOnCopyData([&](const std::wstring& file) {
+        if (!IsImageFile(file)) return;
+        work.Enqueue({file, std::filesystem::path(file).parent_path().wstring()});
+    });
 
     // Start watching immediately so drop-a-file-in-Pictures "just works".
     startWatching();

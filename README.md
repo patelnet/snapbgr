@@ -86,6 +86,14 @@ Copy or save any image into the watched folder and a
 with a white background, if you prefer) appears in the output folder
 within seconds. Originals are never modified.
 
+### Right-click any image in File Explorer
+
+SnapBGR also adds a **Remove Background** entry to the Explorer
+right-click menu for images (`.jpg`, `.png`, `.bmp`, `.webp`, `.tif`).
+On-demand results are placed **next to the original file** — no need to
+move anything into the watched folder. The menu entry is registered
+per-user the first time the app runs and removed on uninstall.
+
 ## AI models
 
 The app ships **without** a bundled model and runs a synthetic

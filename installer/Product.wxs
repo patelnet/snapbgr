@@ -28,7 +28,7 @@
 
   <Package Name="SnapBGR"
            Manufacturer="Dhaval"
-           Version="1.8.0"
+           Version="1.9.0"
            UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
            Scope="perUserOrMachine"
            Compressed="yes">
@@ -74,8 +74,17 @@
                   Directory="APPLICATIONFOLDER"
                   ExeCommand="reg.exe delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v SnapBGR /f"
                   Return="ignore" />
+    <!-- Remove the per-user Explorer "Remove Background" context menu the
+         app registers at startup. Runs before files are removed so the EXE
+         still exists to perform its own cleanup. -->
+    <CustomAction Id="RemoveContextMenu"
+                  Directory="APPLICATIONFOLDER"
+                  ExeCommand="&quot;[APPLICATIONFOLDER]SnapBGR.exe&quot; --unregister"
+                  Return="ignore" />
     <InstallExecuteSequence>
       <Custom Action="RemoveAutostart" Before="RemoveFiles"
+              Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RemoveContextMenu" Before="RemoveFiles"
               Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
     <!-- Branded wizard art: 493x58 banner + 493x312 welcome/finish background. -->

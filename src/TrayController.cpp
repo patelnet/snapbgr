@@ -20,7 +20,6 @@ constexpr UINT ID_MENU_CPU_NORMAL = 1011;
 constexpr UINT ID_MENU_CPU_LOW = 1012;
 constexpr UINT ID_MENU_CPU_EFFICIENCY = 1013;
 constexpr UINT ID_MENU_AUTOSTART = 1014;
-constexpr wchar_t kWndClass[] = L"SnapBGRTrayWnd";
 } // namespace
 
 TrayController::~TrayController() {
@@ -36,10 +35,10 @@ bool TrayController::Initialize(const std::wstring& tooltip, const std::wstring&
     WNDCLASSW wc{};
     wc.lpfnWndProc = &TrayController::WndProc;
     wc.hInstance = ::GetModuleHandleW(nullptr);
-    wc.lpszClassName = kWndClass;
+    wc.lpszClassName = kWindowClassName;
     ::RegisterClassW(&wc); // ok if already registered
 
-    m_hwnd = ::CreateWindowExW(0, kWndClass, L"", 0, 0, 0, 0, 0,
+    m_hwnd = ::CreateWindowExW(0, kWindowClassName, L"", 0, 0, 0, 0, 0,
                                HWND_MESSAGE, nullptr, wc.hInstance, this);
     if (!m_hwnd) return false;
 
@@ -193,6 +192,16 @@ LRESULT CALLBACK TrayController::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
 
     auto* self = reinterpret_cast<TrayController*>(::GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (self && msg == WM_COPYDATA) {
+        // On-demand request forwarded from a second instance: dwData 1
+        // carries a null-terminated wide file path.
+        auto* cds = reinterpret_cast<COPYDATASTRUCT*>(lParam);
+        if (cds && cds->dwData == 1 && cds->lpData && cds->cbData >= sizeof(wchar_t) &&
+            self->m_onCopyData) {
+            self->m_onCopyData(std::wstring(static_cast<const wchar_t*>(cds->lpData)));
+        }
+        return TRUE;
+    }
     if (self && msg == WM_TRAYICON) {
         switch (LOWORD(lParam)) {
         case WM_RBUTTONUP:

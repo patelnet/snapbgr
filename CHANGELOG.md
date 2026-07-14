@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.9.0] - 2026-07-14
+
+### Added
+- **Explorer context menu**: right-click any image in File Explorer and
+  choose *Remove Background* to process it on demand. The result is
+  written next to the original file (unlike watched-folder processing,
+  which uses the configured output folder). If SnapBGR is running the
+  request is handled by its queue with the usual notifications; otherwise
+  the file is processed by a short-lived one-shot instance. The per-user
+  menu entry is registered automatically at startup and removed on
+  uninstall.
+
 ## [1.8.0] - 2026-07-13
 
 ### Added
