@@ -19,6 +19,7 @@ constexpr UINT ID_MENU_FORMAT_JPG = 1010;
 constexpr UINT ID_MENU_CPU_NORMAL = 1011;
 constexpr UINT ID_MENU_CPU_LOW = 1012;
 constexpr UINT ID_MENU_CPU_EFFICIENCY = 1013;
+constexpr UINT ID_MENU_AUTOSTART = 1014;
 constexpr wchar_t kWndClass[] = L"SnapBGRTrayWnd";
 } // namespace
 
@@ -146,6 +147,12 @@ void TrayController::ShowContextMenu() {
         ::AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(cpuMenu),
                       L"CPU Usage");
     }
+    // Start-at-sign-in toggle (checkmark reflects the HKCU Run entry).
+    {
+        const bool autostart = m_autostartProvider && m_autostartProvider();
+        ::AppendMenuW(menu, MF_STRING | (autostart ? MF_CHECKED : 0u),
+                      ID_MENU_AUTOSTART, L"Start on Login");
+    }
     ::AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     ::AppendMenuW(menu, MF_STRING, ID_MENU_EXIT, L"Exit");
 
@@ -171,6 +178,7 @@ void TrayController::ShowContextMenu() {
     case ID_MENU_CPU_NORMAL:     if (m_onSelectThrottle) m_onSelectThrottle(L"normal"); break;
     case ID_MENU_CPU_LOW:        if (m_onSelectThrottle) m_onSelectThrottle(L"low"); break;
     case ID_MENU_CPU_EFFICIENCY: if (m_onSelectThrottle) m_onSelectThrottle(L"efficiency"); break;
+    case ID_MENU_AUTOSTART:      if (m_onToggleAutostart) m_onToggleAutostart(); break;
     case ID_MENU_EXIT:           if (m_onExit) m_onExit(); break;
     default: break;
     }

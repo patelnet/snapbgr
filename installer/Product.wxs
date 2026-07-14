@@ -28,7 +28,7 @@
 
   <Package Name="SnapBGR"
            Manufacturer="Dhaval"
-           Version="1.7.0"
+           Version="1.8.0"
            UpgradeCode="7B7C2E5A-9A31-4A6E-8F2C-2D5E1B4C9F10"
            Scope="perUserOrMachine"
            Compressed="yes">
@@ -53,6 +53,31 @@
     <Property Id="WixAppFolder" Value="WixPerUserFolder" />
     <ui:WixUI Id="WixUI_Advanced" />
     <WixVariable Id="WixUILicenseRtf" Value="installer\license.rtf" />
+    <!-- Finish-page checkbox: register SnapBGR to start at sign-in
+         (HKCU Run key, written per-user). Checked by default. The tray
+         menu's "Start on Login" item toggles the same key later. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT"
+              Value="Start SnapBGR when I sign in" />
+    <CustomAction Id="EnableAutostart"
+                  Directory="APPLICATIONFOLDER"
+                  ExeCommand="reg.exe add &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v SnapBGR /t REG_SZ /d &quot;\&quot;[APPLICATIONFOLDER]SnapBGR.exe\&quot;&quot; /f"
+                  Return="asyncNoWait" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
+               Value="EnableAutostart"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
+    <!-- Uninstall cleanup: drop the Run entry so a removed app never
+         lingers in startup. Impersonated (writes the user's HKCU). -->
+    <CustomAction Id="RemoveAutostart"
+                  Directory="APPLICATIONFOLDER"
+                  ExeCommand="reg.exe delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v SnapBGR /f"
+                  Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="RemoveAutostart" Before="RemoveFiles"
+              Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
     <!-- Branded wizard art: 493x58 banner + 493x312 welcome/finish background. -->
     <WixVariable Id="WixUIBannerBmp" Value="installer\icons\banner.bmp" />
     <WixVariable Id="WixUIDialogBmp" Value="installer\icons\dialog.bmp" />

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [SemVer](https://semver.org/).
 
+## [1.8.0] - 2026-07-13
+
+### Added
+- **Start on login**: the installer's finish page now offers a
+  "Start SnapBGR when I sign in" checkbox (checked by default), and the
+  tray menu has a matching *Start on Login* toggle. Both manage the same
+  per-user `Run` registry entry, which is removed on uninstall.
+
 ## [1.7.0] - 2026-07-07
 
 ### Added

@@ -65,6 +65,15 @@ public:
     void SetThrottleProvider(std::function<std::wstring()> cb) {
         m_throttleProvider = std::move(cb);
     }
+    // Called when the user toggles "Start on Login".
+    void SetOnToggleAutostart(std::function<void()> cb) {
+        m_onToggleAutostart = std::move(cb);
+    }
+    // Returns true when the app is registered to start at sign-in, so the
+    // menu can show a checkmark.
+    void SetAutostartProvider(std::function<bool()> cb) {
+        m_autostartProvider = std::move(cb);
+    }
 
     // Called right before the menu opens; returns status lines rendered as
     // disabled items at the top of the menu (state, queue depth, model, ...).
@@ -93,6 +102,8 @@ private:
     std::function<std::wstring()> m_formatProvider;
     std::function<void(const std::wstring&)> m_onSelectThrottle;
     std::function<std::wstring()> m_throttleProvider;
+    std::function<void()> m_onToggleAutostart;
+    std::function<bool()> m_autostartProvider;
     std::function<std::vector<std::wstring>()> m_statusProvider;
 };
 

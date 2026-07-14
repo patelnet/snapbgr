@@ -78,6 +78,7 @@ Right-click the tray icon:
 | **Get Compatible Models** | Opens the model download catalog |
 | **Output Format** | PNG (transparent, default) or JPG (white background) |
 | **CPU Usage** | Normal (full speed), Low (background priority, half the cores) or Efficiency (power saving, single core) |
+| **Start on Login** | Toggle starting SnapBGR automatically when you sign in |
 | **Exit** | Quit the app |
 
 Copy or save any image into the watched folder and a

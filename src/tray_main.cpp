@@ -234,6 +234,48 @@ const wchar_t* ThrottleLabel(const std::wstring& mode) {
     return L"Normal (full speed)";
 }
 
+// --- Start-on-login via the per-user Run key -------------------------------
+// HKCU\...\Run is the single source of truth: the installer's finish-page
+// checkbox writes the same value, so the tray checkmark always reflects
+// reality regardless of how autostart was enabled.
+constexpr wchar_t kRunKey[] = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+constexpr wchar_t kRunValue[] = L"SnapBGR";
+
+bool IsAutostartEnabled() {
+    HKEY key = nullptr;
+    if (::RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_QUERY_VALUE, &key) !=
+        ERROR_SUCCESS) {
+        return false;
+    }
+    const LSTATUS st = ::RegQueryValueExW(key, kRunValue, nullptr, nullptr,
+                                          nullptr, nullptr);
+    ::RegCloseKey(key);
+    return st == ERROR_SUCCESS;
+}
+
+bool SetAutostartEnabled(bool enable) {
+    HKEY key = nullptr;
+    if (::RegOpenKeyExW(HKEY_CURRENT_USER, kRunKey, 0, KEY_SET_VALUE, &key) !=
+        ERROR_SUCCESS) {
+        return false;
+    }
+    LSTATUS st;
+    if (enable) {
+        // Quote the path: Run entries are parsed as command lines.
+        wchar_t exe[MAX_PATH]{};
+        ::GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        const std::wstring cmd = L"\"" + std::wstring(exe) + L"\"";
+        st = ::RegSetValueExW(key, kRunValue, 0, REG_SZ,
+                              reinterpret_cast<const BYTE*>(cmd.c_str()),
+                              static_cast<DWORD>((cmd.size() + 1) * sizeof(wchar_t)));
+    } else {
+        st = ::RegDeleteValueW(key, kRunValue);
+        if (st == ERROR_FILE_NOT_FOUND) st = ERROR_SUCCESS; // already off
+    }
+    ::RegCloseKey(key);
+    return st == ERROR_SUCCESS;
+}
+
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
@@ -484,6 +526,18 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         // new cap takes effect immediately.
         loadModel();
         tray.ShowBalloon(L"CPU usage set", ThrottleLabel(settings.CpuThrottle()));
+    });
+    tray.SetAutostartProvider([] { return IsAutostartEnabled(); });
+    tray.SetOnToggleAutostart([&] {
+        const bool enable = !IsAutostartEnabled();
+        if (SetAutostartEnabled(enable)) {
+            tray.ShowBalloon(L"Start on Login",
+                             enable ? L"SnapBGR will start when you sign in."
+                                    : L"SnapBGR will no longer start automatically.");
+        } else {
+            tray.ShowBalloon(L"Start on Login", L"Could not update the startup entry.",
+                             /*isError=*/true);
+        }
     });
     tray.SetOnExit([] { ::PostQuitMessage(0); });
 
